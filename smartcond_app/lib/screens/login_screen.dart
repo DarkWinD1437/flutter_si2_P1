@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+﻿import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../config.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -9,13 +7,37 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  void _performNavigation(String userType) {
+    print('🚀 Ejecutando navegación para tipo: $userType');
+    String route;
+    if (userType == 'admin') {
+      route = '/admin';
+    } else if (userType == 'resident') {
+      route = '/resident';
+    } else if (userType == 'security') {
+      route = '/security';
+    } else {
+      route = '/resident'; // Default fallback
+    }
+    print('📍 Navegando a ruta: $route');
+    try {
+      Navigator.pushReplacementNamed(context, route);
+      print('✅ Navegación completada exitosamente');
+    } catch (e) {
+      print('❌ Error en navegación: $e');
+    }
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
   String? _error;
   bool _isLoading = false;
-  bool _debugMode = true; // Cambiar a false en producción
+  bool _isCheckingSession = true; // Nuevo estado para verificar sesión
+  bool _isNavigating = false; // Nuevo estado para navegación
+  bool _rememberMe = false;
+  bool _showPassword = false;
 
   @override
   void initState() {
@@ -24,64 +46,128 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkExistingSession() async {
-    final isLoggedIn = await _authService.isLoggedIn();
-    if (isLoggedIn && mounted) {
-      _navigateToDashboard();
-    }
-  }
+    print('�� Verificando sesión existente...');
 
-  Future<void> _login() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
+    try {
+      final token = await _authService.storage.read(key: 'access_token');
 
-      try {
-        print('🔐 Intentando login con: ${_usernameController.text}');
-        
-        final result = await _authService.login(
-          _usernameController.text,
-          _passwordController.text,
-        );
-
-        if (!mounted) return;
-
-        if (result['success']) {
-          print('✅ Login exitoso');
-          _navigateToDashboard();
-        } else {
-          print('❌ Error de login: ${result['error']}');
-          setState(() {
-            _error = _parseError(result['error']);
-          });
-        }
-      } catch (e) {
-        print('❌ Excepción: $e');
+      if (token == null) {
+        print('🔐 No hay token - mostrando login');
         setState(() {
-          _error = 'Error de conexión. Verifica la configuración.';
+          _isCheckingSession = false;
         });
-      } finally {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-          });
-        }
+        return;
+      }
+
+      print('🔑 Token encontrado - intentando validación rápida...');
+
+      final isLoggedIn = await _authService.isLoggedIn().timeout(
+        const Duration(seconds: 1),
+        onTimeout: () {
+          print('⏰ Timeout 1s - mostrando login');
+          return false;
+        },
+      );
+
+      if (!mounted) return;
+
+      if (isLoggedIn) {
+        print('✅ Sesión válida - navegando al dashboard');
+        _navigateToDashboard();
+      } else {
+        print('❌ Sesión inválida - mostrando login');
+        setState(() {
+          _isCheckingSession = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error en verificación:  - mostrando login');
+      if (mounted) {
+        setState(() {
+          _isCheckingSession = false;
+        });
       }
     }
   }
 
+  Future<void> _login() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('🔐 Intentando login con: ${_usernameController.text}');
+
+      final result = await _authService
+          .login(_usernameController.text, _passwordController.text)
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => {'success': false, 'error': 'Timeout de conexión'},
+          );
+
+      if (!mounted) return;
+
+      print('📊 Resultado del login: ${result['success']}');
+
+      if (result['success']) {
+        print('✅ Login exitoso - iniciando navegación al dashboard');
+        setState(() {
+          _isLoading = false;
+          _isNavigating = true;
+        });
+        await _navigateToDashboard();
+      } else {
+        print('❌ Error de login: ${result['error']}');
+        setState(() {
+          _isLoading = false;
+          _error = _parseError(result['error']);
+        });
+      }
+    } catch (e) {
+      print('❌ Excepción de login: $e');
+      setState(() {
+        _isLoading = false;
+        _error = 'Error de conexión: $e';
+      });
+    }
+  }
+
   Future<void> _navigateToDashboard() async {
-    final userType = await _authService.getUserType();
-    
-    if (userType == 'admin') {
-      Navigator.pushReplacementNamed(context, '/admin');
-    } else if (userType == 'resident') {
-      Navigator.pushReplacementNamed(context, '/resident');
-    } else if (userType == 'security') {
-      Navigator.pushReplacementNamed(context, '/security');
-    } else {
-      Navigator.pushReplacementNamed(context, '/resident');
+    try {
+      String? userType = await _authService.storage.read(key: 'user_type');
+      if (userType == null) {
+        final profileResult = await _authService.getProfile();
+        print('📊 Resultado del perfil: ${profileResult['success']}');
+        if (profileResult['success']) {
+          final userData = profileResult['data'];
+          userType = userData['role'] ?? 'resident';
+          print('🔄 Rol obtenido del perfil: $userType');
+          await _authService.storage.write(key: 'user_type', value: userType);
+        } else {
+          print('❌ Error al obtener perfil: ${profileResult['error']}');
+          setState(() {
+            _error =
+                'No se pudo obtener el perfil del usuario. Verifica tu conexión o credenciales.';
+            _isNavigating = false;
+          });
+          userType = 'resident';
+        }
+      }
+      if (!mounted) return;
+      print('✅ Navegando con userType: $userType');
+      _performNavigation(userType ?? 'resident');
+    } catch (e) {
+      print('❌ Error en _navigateToDashboard: $e');
+      if (mounted) {
+        setState(() {
+          _error = 'Error de conexión al navegar: $e';
+          _isNavigating = false;
+        });
+        _performNavigation('resident');
+      }
     }
   }
 
@@ -100,59 +186,70 @@ class _LoginScreenState extends State<LoginScreen> {
     return error.toString();
   }
 
-  Future<void> _testConnection() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      print('🔗 Probando conexión con: ${Config.tokenUrl}');
-      
-      final response = await http.get(
-        Uri.parse(Config.tokenUrl.replaceAll('/token/', '/')),
-        headers: {'Accept': 'application/json'},
-      );
-
-      print('📊 Status code: ${response.statusCode}');
-      print('📄 Response: ${response.body.length > 200 ? response.body.substring(0, 200) + "..." : response.body}');
-
-      if (response.statusCode == 200 || response.statusCode == 401) {
-        setState(() {
-          _error = 'Conexión exitosa. Endpoint encontrado.';
-        });
-      } else if (response.body.contains('<!DOCTYPE') || response.body.contains('<html>')) {
-        setState(() {
-          _error = 'Error: El servidor devuelve HTML. ¿URL correcta?';
-        });
-      } else {
-        setState(() {
-          _error = 'Error inesperado: Código ${response.statusCode}';
-        });
-      }
-    } catch (e) {
-      print('❌ Error de conexión: $e');
-      setState(() {
-        _error = 'Error de conexión: $e';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    if (_isCheckingSession) {
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFFEF7ED), Color(0xFFFED7AA), Color(0xFFFECACA)],
+              stops: [0.0, 0.5, 1.0],
+            ),
+          ),
+          child: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Verificando sesión...',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  ElevatedButton(
+                    onPressed: () {
+                      print('⏭️ Usuario saltó la verificación de sesión');
+                      setState(() {
+                        _isCheckingSession = false;
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white.withOpacity(0.2),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: const Text('Continuar sin verificar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade700, Colors.blue.shade300],
+            colors: [Color(0xFFFEF7ED), Color(0xFFFED7AA), Color(0xFFFECACA)],
+            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: SafeArea(
@@ -162,15 +259,10 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo/Icono de la app
-                  Icon(
-                    Icons.security_rounded,
-                    size: 80,
-                    color: Colors.white,
-                  ),
+                  Icon(Icons.home_rounded, size: 80, color: Colors.white),
                   const SizedBox(height: 16),
                   const Text(
-                    'Smart Cond',
+                    'Smart Condominium',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -187,12 +279,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 40),
 
-                  // Tarjeta de login
                   Card(
                     elevation: 8,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: Color(0xFFFED7AA), width: 1),
                     ),
+                    color: Colors.white,
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Form(
@@ -205,21 +298,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                 padding: const EdgeInsets.all(12),
                                 margin: const EdgeInsets.only(bottom: 16),
                                 decoration: BoxDecoration(
-                                  color: Colors.red.shade50,
+                                  color: Color(0xFFFEF2F2),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.red.shade200),
+                                  border: Border(
+                                    left: BorderSide(
+                                      color: Color(0xFFF87171),
+                                      width: 4,
+                                    ),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.error_outline, 
-                                        color: Colors.red.shade700, size: 20),
+                                    Icon(
+                                      Icons.error_outline,
+                                      color: Color(0xFFDC2626),
+                                      size: 20,
+                                    ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         _error!,
                                         style: TextStyle(
-                                          color: Colors.red.shade800,
+                                          color: Color(0xFFDC2626),
                                           fontSize: 14,
+                                          fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                     ),
@@ -227,19 +329,45 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
 
-                            // Campo de usuario
                             TextFormField(
                               controller: _usernameController,
                               decoration: InputDecoration(
                                 labelText: 'Usuario',
-                                prefixIcon: Icon(Icons.person),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                prefixIcon: Icon(
+                                  Icons.person,
+                                  color: Color(0xFFF97316),
                                 ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFFED7AA),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFFED7AA),
+                                    width: 2,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFF97316),
+                                    width: 2,
+                                  ),
+                                ),
+                                filled: true,
+                                fillColor: Color(0xFFFEF7ED),
                                 contentPadding: const EdgeInsets.symmetric(
                                   vertical: 16,
                                   horizontal: 12,
                                 ),
+                              ),
+                              style: TextStyle(
+                                color: Color(0xFF1F2937),
+                                fontWeight: FontWeight.w500,
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -250,20 +378,59 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Campo de contraseña
                             TextFormField(
                               controller: _passwordController,
-                              obscureText: true,
+                              obscureText: !_showPassword,
                               decoration: InputDecoration(
                                 labelText: 'Contraseña',
-                                prefixIcon: Icon(Icons.lock),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                prefixIcon: Icon(
+                                  Icons.lock,
+                                  color: Color(0xFFF97316),
                                 ),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _showPassword
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
+                                    color: Color(0xFFF97316),
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _showPassword = !_showPassword;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFFED7AA),
+                                    width: 2,
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFFED7AA),
+                                    width: 2,
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(
+                                    color: Color(0xFFF97316),
+                                    width: 2,
+                                  ),
+                                ),
+                                filled: true,
+                                fillColor: Color(0xFFFEF7ED),
                                 contentPadding: const EdgeInsets.symmetric(
                                   vertical: 16,
                                   horizontal: 12,
                                 ),
+                              ),
+                              style: TextStyle(
+                                color: Color(0xFF1F2937),
+                                fontWeight: FontWeight.w500,
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -274,73 +441,143 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Botón de login
-                            ElevatedButton(
-                              onPressed: _isLoading ? null : _login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade700,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation(Colors.white),
-                                      ),
-                                    )
-                                  : const Text(
-                                      'Iniciar Sesión',
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Checkbox(
+                                      value: _rememberMe,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _rememberMe = value ?? false;
+                                        });
+                                      },
+                                      activeColor: Color(0xFFF97316),
+                                    ),
+                                    Text(
+                                      'Recordarme',
                                       style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF374151),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
+                                  ],
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Funcionalidad próximamente',
+                                        ),
+                                        backgroundColor: Color(0xFFF97316),
+                                      ),
+                                    );
+                                  },
+                                  child: Text(
+                                    '¿Olvidaste tu contraseña?',
+                                    style: TextStyle(
+                                      color: Color(0xFFF97316),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
 
-                            // Información de debug
-                            if (_debugMode) ...[
-                              const SizedBox(height: 20),
-                              Divider(),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Información de Depuración',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade600,
+                            const SizedBox(height: 24),
+
+                            Container(
+                              height: 50,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFFD97706),
+                                    Color(0xFFEA580C),
+                                    Color(0xFFDC2626),
+                                  ],
                                 ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 10,
+                                    offset: Offset(0, 5),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Endpoint: ${Config.tokenUrl}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey.shade600,
+                              child: ElevatedButton(
+                                onPressed: (_isLoading || _isNavigating)
+                                    ? null
+                                    : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.transparent,
+                                  shadowColor: Colors.transparent,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
+                                child: _isLoading || _isNavigating
+                                    ? Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor:
+                                                  AlwaysStoppedAnimation(
+                                                    Colors.white,
+                                                  ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _isNavigating
+                                                ? 'Navegando...'
+                                                : 'Iniciando sesión...',
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      )
+                                    : const Text(
+                                        'Iniciar Sesión',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
                               ),
-                              const SizedBox(height: 8),
-                              OutlinedButton(
-                                onPressed: _testConnection,
-                                child: Text('Probar Conexión'),
-                              ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
 
-                  // Información adicional
                   const SizedBox(height: 24),
-                  Text(
-                    '¿Necesitas ayuda? Contacta al administrador',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.8),
-                      fontSize: 14,
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: Color(0xFFFED7AA), width: 1),
+                      ),
+                    ),
+                    child: Text(
+                      '© 2025 Smart Condominium - Sistema de Gestión Inteligente by DarkWinD',
+                      style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                      textAlign: TextAlign.center,
                     ),
                   ),
                 ],

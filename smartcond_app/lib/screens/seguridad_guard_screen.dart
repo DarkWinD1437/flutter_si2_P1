@@ -995,6 +995,8 @@ class _SeguridadGuardScreenState extends State<SeguridadGuardScreen>
               );
             } else if (key == 'estado_cuenta') {
               Navigator.pushNamed(context, '/estado_cuenta');
+            } else if (key == 'reservas') {
+              Navigator.pushNamed(context, '/reservas');
             } else if (key == 'logout') {
               _handleLogout(context);
             } else if (key != 'dashboard') {

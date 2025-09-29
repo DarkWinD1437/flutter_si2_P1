@@ -171,6 +171,11 @@ List<_SidebarItem> _getSidebarItems(String role) {
       _SidebarItem('incidentes', 'Incidentes', Icons.report_problem),
       _SidebarItem('rondas', 'Rondas', Icons.directions_walk),
       _SidebarItem('comunicados', 'Avisos y comunicados', Icons.announcement),
+      _SidebarItem(
+        'reservas',
+        'Consultar Disponibilidad',
+        Icons.event_available,
+      ),
       _SidebarItem('reportes', 'Reportes', Icons.analytics),
       _SidebarItem('logout', 'Cerrar Sesión', Icons.logout),
     ];

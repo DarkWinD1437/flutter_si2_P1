@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../widgets/sidebar.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -17,6 +18,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = true;
   bool _isEditing = false;
   bool _isSaving = false;
+  String _userRole = 'resident'; // Default role
 
   // Controladores para los campos editables
   final TextEditingController _firstNameController = TextEditingController();
@@ -48,6 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (result['success'] && mounted) {
         setState(() {
           _userData = result['data'];
+          _userRole = result['data']['role'] ?? 'resident';
           _populateControllers();
           _isLoading = false;
         });
@@ -291,6 +294,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _onSidebarSelect(String key) {
+    if (key == 'logout') {
+      _authService.logout();
+      Navigator.pushReplacementNamed(context, '/login');
+    } else if (key != 'profile') {
+      Navigator.pushReplacementNamed(context, '/$key');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -299,6 +311,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Mi Perfil'),
         backgroundColor: const Color(0xFF312E81),
         foregroundColor: Colors.white,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           if (!_isEditing)
             Row(
@@ -340,6 +358,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ],
             ),
         ],
+      ),
+      drawer: Drawer(
+        child: AppSidebar(
+          userRole: _userRole,
+          selected: 'profile',
+          onSelect: (key) {
+            Navigator.pop(context);
+            _onSidebarSelect(key);
+          },
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

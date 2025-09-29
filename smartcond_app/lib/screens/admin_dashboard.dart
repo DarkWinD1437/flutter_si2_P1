@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/sidebar.dart';
-import 'profile_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -84,12 +83,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _selectedSidebar = key;
     });
     if (key == 'profile') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ProfileScreen()),
-      );
+      Navigator.pushNamed(context, '/profile');
     } else if (key == 'estado_cuenta') {
       Navigator.pushNamed(context, '/estado_cuenta');
+    } else if (key == 'notificaciones') {
+      Navigator.pushNamed(context, '/notificaciones');
     } else if (key == 'logout') {
       _handleLogout(context);
     } else if (key != 'admin') {

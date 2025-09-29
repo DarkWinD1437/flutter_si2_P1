@@ -261,41 +261,55 @@ class _FinanzasScreenState extends State<FinanzasScreen>
         return Card(
           color: Color(0xFF232336),
           margin: EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.red,
-              child: Icon(Icons.payment, color: Colors.white),
-            ),
-            title: Text(
-              cuota['concepto'] ?? 'Cuota',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              'Vencimiento: ${_formatDate(cuota['fecha_vencimiento'])}',
-              style: TextStyle(color: Colors.white70),
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  '\$${cuota['monto']}',
-                  style: TextStyle(
-                    color: Colors.red,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cuota['concepto'] ?? 'Cuota',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Vencimiento: ${_formatDate(cuota['fecha_vencimiento'])}',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
                   ),
                 ),
-                ElevatedButton(
-                  onPressed: () => _mostrarDialogoPago(cuota),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    minimumSize: Size(60, 30),
-                  ),
-                  child: Text('Pagar', style: TextStyle(fontSize: 12)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$${cuota['monto']}',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    ElevatedButton(
+                      onPressed: () => _mostrarDialogoPago(cuota),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        minimumSize: Size(70, 32),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                      ),
+                      child: Text('Pagar', style: TextStyle(fontSize: 12)),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -338,37 +352,62 @@ class _FinanzasScreenState extends State<FinanzasScreen>
         return Card(
           color: Color(0xFF232336),
           margin: EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.green,
-              child: Icon(Icons.check, color: Colors.white),
-            ),
-            title: Text(
-              pago['concepto'] ?? 'Pago',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            subtitle: Text(
-              'Pagado: ${_formatDate(pago['fecha_pago'])}',
-              style: TextStyle(color: Colors.white70),
-            ),
-            trailing: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
               children: [
-                Text(
-                  '\$${pago['monto_pagado']}',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pago['concepto'] ?? 'Pago',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Pagado: ${_formatDate(pago['fecha_pago'])}',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _descargarComprobante(pago['id']),
-                  child: Text('Comprobante', style: TextStyle(fontSize: 12)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$${pago['monto_pagado']}',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => _descargarComprobante(pago['id']),
+                      style: TextButton.styleFrom(
+                        backgroundColor: Colors.blue.withOpacity(0.1),
+                        foregroundColor: Colors.blue,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size(70, 32),
+                      ),
+                      child: Text(
+                        'Comprobante',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

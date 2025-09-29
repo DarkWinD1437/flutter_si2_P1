@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/sidebar.dart';
-import 'profile_screen.dart';
 
 class ResidentDashboard extends StatefulWidget {
   const ResidentDashboard({super.key});
@@ -14,6 +13,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
   final AuthService _authService = AuthService();
   String _userName = '';
   String _userRole = 'Residente';
+  String _userRoleKey = 'resident'; // Para el sidebar
   bool _isLoading = true;
   String _greeting = '';
   bool _animateCards = false;
@@ -70,6 +70,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
         setState(() {
           _userName = username;
           _userRole = _getRoleDisplayName(userType ?? 'resident');
+          _userRoleKey = userType ?? 'resident';
           _isLoading = false;
         });
         return;
@@ -81,12 +82,14 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
           _userName =
               userData['first_name'] ?? userData['username'] ?? 'Usuario';
           _userRole = _getRoleDisplayName(userData['role'] ?? 'resident');
+          _userRoleKey = userData['role'] ?? 'resident';
           _isLoading = false;
         });
       } else if (mounted) {
         setState(() {
           _userName = 'Usuario';
           _userRole = 'Residente';
+          _userRoleKey = 'resident';
           _isLoading = false;
         });
       }
@@ -96,6 +99,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
         setState(() {
           _userName = 'Usuario';
           _userRole = 'Residente';
+          _userRoleKey = 'resident';
           _isLoading = false;
         });
       }
@@ -107,18 +111,19 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
       _selectedSidebar = key;
     });
     if (key == 'profile') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ProfileScreen()),
-      );
+      Navigator.pushNamed(context, '/profile');
     } else if (key == 'estado_cuenta') {
       Navigator.pushNamed(context, '/estado_cuenta');
+    } else if (key == 'notificaciones') {
+      Navigator.pushNamed(context, '/notificaciones');
     } else if (key == 'logout') {
       _handleLogout(context);
     } else if (key == 'finanzas') {
       Navigator.pushNamed(context, '/finanzas');
     } else if (key == 'comunicados') {
       Navigator.pushNamed(context, '/comunicados');
+    } else if (key == 'reservas') {
+      Navigator.pushNamed(context, '/reservas');
     }
     // Aquí puedes agregar navegación para otras vistas
   }
@@ -251,7 +256,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
       ),
       drawer: Drawer(
         child: AppSidebar(
-          userRole: 'resident',
+          userRole: _userRoleKey,
           selected: _selectedSidebar,
           onSelect: (key) {
             Navigator.pop(context);

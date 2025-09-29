@@ -9,6 +9,8 @@ import 'screens/reservas_screen.dart';
 import 'screens/seguridad_residente_screen.dart';
 import 'screens/seguridad_guard_screen.dart';
 import 'screens/estado_cuenta_screen.dart';
+import 'screens/profile_screen.dart';
+import 'screens/notificaciones_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,6 +39,8 @@ class MyApp extends StatelessWidget {
         '/seguridad': (context) => SeguridadResidenteScreen(),
         '/seguridad_guard': (context) => SeguridadGuardScreen(),
         '/estado_cuenta': (context) => EstadoCuentaScreen(),
+        '/profile': (context) => ProfileScreen(),
+        '/notificaciones': (context) => NotificacionesScreen(),
         // Rutas adicionales para el dashboard de seguridad
         '/dashboard': (context) => SecurityDashboard(),
       },

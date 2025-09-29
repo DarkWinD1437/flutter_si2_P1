@@ -1,5 +1,9 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:camera/camera.dart';
+import 'dart:convert';
 import '../services/auth_service.dart';
+import '../services/ai_service.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -32,12 +36,16 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
+  final _aiService = AIService();
+  final ImagePicker _picker = ImagePicker();
+
   String? _error;
   bool _isLoading = false;
   bool _isCheckingSession = true; // Nuevo estado para verificar sesión
   bool _isNavigating = false; // Nuevo estado para navegación
   bool _rememberMe = false;
   bool _showPassword = false;
+  bool _isFacialLogin = false; // Nuevo estado para modo facial
 
   @override
   void initState() {
@@ -186,6 +194,82 @@ class _LoginScreenState extends State<LoginScreen> {
     return error.toString();
   }
 
+  // Método para login facial
+  Future<void> _facialLogin() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      print('🤖 Iniciando login facial...');
+
+      // Capturar imagen desde la cámara
+      final XFile? image = await _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        imageQuality: 85,
+      );
+
+      if (image == null) {
+        setState(() {
+          _isLoading = false;
+          _error = 'No se capturó ninguna imagen';
+        });
+        return;
+      }
+
+      print('📸 Imagen capturada: ${image.path}');
+
+      // Convertir imagen a base64
+      final bytes = await image.readAsBytes();
+      final base64Image = base64Encode(bytes);
+
+      print('🔄 Imagen convertida a base64 (${base64Image.length} caracteres)');
+
+      // Enviar a backend para reconocimiento facial
+      final result = await _aiService
+          .loginFacial(base64Image)
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => {'success': false, 'error': 'Timeout de conexión'},
+          );
+
+      if (!mounted) return;
+
+      print('📊 Resultado login facial: ${result['success']}');
+
+      if (result['success']) {
+        print('✅ Login facial exitoso - iniciando navegación al dashboard');
+        setState(() {
+          _isLoading = false;
+          _isNavigating = true;
+        });
+        await _navigateToDashboard();
+      } else {
+        print('❌ Error en login facial: ${result['error']}');
+        setState(() {
+          _isLoading = false;
+          _error = result['error'] ?? 'Error en reconocimiento facial';
+        });
+      }
+    } catch (e) {
+      print('❌ Excepción en login facial: $e');
+      setState(() {
+        _isLoading = false;
+        _error = 'Error de conexión: $e';
+      });
+    }
+  }
+
+  // Método para alternar entre modos de login
+  void _toggleLoginMode() {
+    setState(() {
+      _isFacialLogin = !_isFacialLogin;
+      _error = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isCheckingSession) {
@@ -329,166 +413,252 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
 
-                            TextFormField(
-                              controller: _usernameController,
-                              decoration: InputDecoration(
-                                labelText: 'Usuario',
-                                prefixIcon: Icon(
-                                  Icons.person,
-                                  color: Color(0xFFF97316),
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFFED7AA),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFFED7AA),
-                                    width: 2,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFF97316),
-                                    width: 2,
-                                  ),
-                                ),
-                                filled: true,
-                                fillColor: Color(0xFFFEF7ED),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                  horizontal: 12,
-                                ),
-                              ),
-                              style: TextStyle(
-                                color: Color(0xFF1F2937),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor ingrese su usuario';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: !_showPassword,
-                              decoration: InputDecoration(
-                                labelText: 'Contraseña',
-                                prefixIcon: Icon(
-                                  Icons.lock,
-                                  color: Color(0xFFF97316),
-                                ),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _showPassword
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                    color: Color(0xFFF97316),
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _showPassword = !_showPassword;
-                                    });
-                                  },
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFFED7AA),
-                                    width: 2,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFFED7AA),
-                                    width: 2,
-                                  ),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Color(0xFFF97316),
-                                    width: 2,
-                                  ),
-                                ),
-                                filled: true,
-                                fillColor: Color(0xFFFEF7ED),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 16,
-                                  horizontal: 12,
-                                ),
-                              ),
-                              style: TextStyle(
-                                color: Color(0xFF1F2937),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Por favor ingrese su contraseña';
-                                }
-                                return null;
-                              },
-                            ),
                             const SizedBox(height: 24),
 
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    Checkbox(
-                                      value: _rememberMe,
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _rememberMe = value ?? false;
-                                        });
-                                      },
-                                      activeColor: Color(0xFFF97316),
+                            // Botón para alternar entre modos de login
+                            Container(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: _toggleLoginMode,
+                                icon: Icon(
+                                  _isFacialLogin ? Icons.person : Icons.face,
+                                  color: Color(0xFFF97316),
+                                ),
+                                label: Text(
+                                  _isFacialLogin
+                                      ? 'Cambiar a Login Tradicional'
+                                      : 'Cambiar a Login Facial',
+                                  style: TextStyle(
+                                    color: Color(0xFFF97316),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(
+                                    color: Color(0xFFF97316),
+                                    width: 2,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Mostrar campos de usuario/contraseña solo si no es login facial
+                            if (!_isFacialLogin) ...[
+                              TextFormField(
+                                controller: _usernameController,
+                                decoration: InputDecoration(
+                                  labelText: 'Usuario',
+                                  prefixIcon: Icon(
+                                    Icons.person,
+                                    color: Color(0xFFF97316),
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFFED7AA),
+                                      width: 2,
                                     ),
-                                    Text(
-                                      'Recordarme',
-                                      style: TextStyle(
-                                        color: Color(0xFF374151),
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w500,
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFFED7AA),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFF97316),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: Color(0xFFFEF7ED),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 12,
+                                  ),
+                                ),
+                                style: TextStyle(
+                                  color: Color(0xFF1F2937),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Por favor ingrese su usuario';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: !_showPassword,
+                                decoration: InputDecoration(
+                                  labelText: 'Contraseña',
+                                  prefixIcon: Icon(
+                                    Icons.lock,
+                                    color: Color(0xFFF97316),
+                                  ),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _showPassword
+                                          ? Icons.visibility_off
+                                          : Icons.visibility,
+                                      color: Color(0xFFF97316),
+                                    ),
+                                    onPressed: () {
+                                      setState(() {
+                                        _showPassword = !_showPassword;
+                                      });
+                                    },
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFFED7AA),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFFED7AA),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Color(0xFFF97316),
+                                      width: 2,
+                                    ),
+                                  ),
+                                  filled: true,
+                                  fillColor: Color(0xFFFEF7ED),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                    horizontal: 12,
+                                  ),
+                                ),
+                                style: TextStyle(
+                                  color: Color(0xFF1F2937),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Por favor ingrese su contraseña';
+                                  }
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 24),
+
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Checkbox(
+                                        value: _rememberMe,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _rememberMe = value ?? false;
+                                          });
+                                        },
+                                        activeColor: Color(0xFFF97316),
                                       ),
+                                      Text(
+                                        'Recordarme',
+                                        style: TextStyle(
+                                          color: Color(0xFF374151),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Funcionalidad próximamente',
+                                          ),
+                                          backgroundColor: Color(0xFFF97316),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      '¿Olvidaste tu contraseña?',
+                                      style: TextStyle(
+                                        color: Color(0xFFF97316),
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 24),
+                            ],
+
+                            // Mostrar instrucciones para login facial
+                            if (_isFacialLogin) ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFFEF7ED),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Color(0xFFFED7AA),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.face,
+                                      size: 48,
+                                      color: Color(0xFFF97316),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Login Facial con IA',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1F2937),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Coloque su rostro frente a la cámara y presione el botón para iniciar sesión.',
+                                      style: TextStyle(
+                                        color: Color(0xFF6B7280),
+                                        fontSize: 14,
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
                                   ],
                                 ),
-                                TextButton(
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          'Funcionalidad próximamente',
-                                        ),
-                                        backgroundColor: Color(0xFFF97316),
-                                      ),
-                                    );
-                                  },
-                                  child: Text(
-                                    '¿Olvidaste tu contraseña?',
-                                    style: TextStyle(
-                                      color: Color(0xFFF97316),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 24),
+                              ),
+                              const SizedBox(height: 24),
+                            ],
 
                             Container(
                               height: 50,
@@ -512,7 +682,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               child: ElevatedButton(
                                 onPressed: (_isLoading || _isNavigating)
                                     ? null
-                                    : _login,
+                                    : (_isFacialLogin ? _facialLogin : _login),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.transparent,
                                   shadowColor: Colors.transparent,
@@ -541,7 +711,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                           Text(
                                             _isNavigating
                                                 ? 'Navegando...'
-                                                : 'Iniciando sesión...',
+                                                : (_isFacialLogin
+                                                      ? 'Procesando rostro...'
+                                                      : 'Iniciando sesión...'),
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
@@ -550,13 +722,28 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                         ],
                                       )
-                                    : const Text(
-                                        'Iniciar Sesión',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                          color: Colors.white,
-                                        ),
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            _isFacialLogin
+                                                ? Icons.face
+                                                : Icons.login,
+                                            color: Colors.white,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            _isFacialLogin
+                                                ? 'Iniciar Sesión Facial'
+                                                : 'Iniciar Sesión',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                               ),
                             ),

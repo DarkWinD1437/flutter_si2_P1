@@ -1,8 +1,8 @@
 class Config {
   // URL base del backend Django
+  // Para desarrollo local con React y Flutter: usar IP local de la máquina
   // Para dispositivo físico: usar IP de red local (192.168.0.7)
-  // Para emulador Android: usar 10.0.2.2
-  // Para desarrollo local: usar localhost
+  // Para emulador Android: usar IP de la máquina host
   static const String baseUrl = 'http://192.168.0.7:8000';
 
   // ⚠️ IMPORTANTE: Si cambias esta URL, debes:
@@ -11,8 +11,9 @@ class Config {
   // 3. Hacer logout y login nuevamente
 
   // Opciones alternativas según el entorno:
-  // static const String baseUrl = 'http://10.0.2.2:8000'; // Para emulador Android
   // static const String baseUrl = 'http://localhost:8000'; // Para desarrollo local
+  // static const String baseUrl = 'http://192.168.0.7:8000'; // Para dispositivo físico
+  // static const String baseUrl = 'http://10.0.2.2:8000'; // Para emulador Android
 
   // URLs de autenticación JWT
   static const String tokenUrl =

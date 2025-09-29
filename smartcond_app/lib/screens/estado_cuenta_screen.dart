@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/profile_service.dart';
+import '../widgets/sidebar.dart';
 import 'pantalla_pago_cargos.dart';
 import 'pantalla_historial_pagos.dart';
 
@@ -508,6 +509,15 @@ class _EstadoCuentaScreenState extends State<EstadoCuentaScreen> {
     );
   }
 
+  void _onSidebarSelect(String key) {
+    if (key == 'logout') {
+      _authService.logout();
+      Navigator.pushReplacementNamed(context, '/login');
+    } else if (key != 'estado_cuenta') {
+      Navigator.pushReplacementNamed(context, '/$key');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -516,6 +526,12 @@ class _EstadoCuentaScreenState extends State<EstadoCuentaScreen> {
         title: const Text('Estado de Cuenta'),
         backgroundColor: const Color(0xFF312E81),
         foregroundColor: Colors.white,
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
         actions: [
           if (_userRole == 'security' || _userRole == 'admin')
             IconButton(
@@ -524,6 +540,16 @@ class _EstadoCuentaScreenState extends State<EstadoCuentaScreen> {
               tooltip: 'Actualizar',
             ),
         ],
+      ),
+      drawer: Drawer(
+        child: AppSidebar(
+          userRole: _userRole,
+          selected: 'estado_cuenta',
+          onSelect: (key) {
+            Navigator.pop(context);
+            _onSidebarSelect(key);
+          },
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
